@@ -30,12 +30,14 @@ def pause(telegram_id: str) -> str:
         "https://api.spotify.com/v1/me/player/pause",
         headers = {"Authorization": f"Bearer {token}"}
 )
-    if response.status_code == 204 :
-        return "Nothing is playing rightnow"
-    elif response.status_code == 200:
-        return "Pause Successful"
+    if response.status_code == 200:
+        return "⏸ Paused successfully"
+    elif response.status_code == 404:
+        return "No active device found — open Spotify on any device first"
     elif response.status_code == 403:
-        "No active device"
+        return "Pause Succesful"
+    elif response.status_code == 409:
+        return "Nothing is playing right now"
     else:
         return f"Error: {response.status_code}"
 
