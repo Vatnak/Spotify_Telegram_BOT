@@ -4,7 +4,7 @@ from command import start, stop_bot
 from response import handle_response
 from dotenv import load_dotenv
 from auth import generate_auth_url, logout
-from spotify import get_now_playing, pause
+from spotify import get_now_playing, pause, play
 
 import os
 load_dotenv()
@@ -60,6 +60,17 @@ async def pause_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(pause(telegram_id))
 
 
+async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telegram_id = str(update.message.from_user.id)
+
+    if not context.args:
+        await update.message.reply_text("Usage: /play <song name>\nExample: /play Blinding Lights")
+        return
+
+    track_name = " ".join(context.args)  # joins multi-word names like "APT Rose"
+    await update.message.reply_text(play(telegram_id, track_name))
+
+
 if __name__ == "__main__":
     app = Application.builder().token(TOKEN).build()
 
@@ -70,6 +81,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("nowplaying", now_playing))
     app.add_handler(CommandHandler("logout", logout_command))
     app.add_handler(CommandHandler("Pause", pause_command))
+    app.add_handler(CommandHandler("play", play_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 
