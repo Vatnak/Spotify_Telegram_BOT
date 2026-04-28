@@ -70,7 +70,7 @@ def play(telegram_id: str, track_name: str) -> str:
         return f"❌ No results found for: {track_name}"
 
     track = tracks[0]
-    track_uri = track["uri"]               # e.g. spotify:track:xxxx
+    track_uri = track["uri"]               
     track_title = track["name"]
     artist = track["artists"][0]["name"]
 
@@ -87,3 +87,75 @@ def play(telegram_id: str, track_name: str) -> str:
         return "⚠️ Spotify Premium required for playback control."
     else:
         return f"❌ Playback error {play_response.status_code}: {play_response.text}"
+
+def resume(telegram_id:str) -> str:
+
+    token = get_valid_token(telegram_id)
+
+    if not token:
+        return "please log in first use /login"
+    
+    headers = {"Authorization": f"Bearer {token}"}
+
+    responese = requests.put(
+        "https://api.spotify.com/v1/me/player/resume",
+        headers = headers
+    )
+
+
+    track = play(telegram_id, track_name=telegram_id)
+    if responese.status_code == 200:
+        return f"Resume {track}"
+    else: 
+        return"hello world"
+
+def add_queue(telegram_id:str, track_name:str) -> str:
+    token = get_valid_token(telegram_id)
+
+    if not token:
+        return "Please log in first. Use /login"
+
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Step 1: Search for the track
+    search_response = requests.get(
+        "https://api.spotify.com/v1/search",
+        headers=headers,
+        params={
+            "q": track_name,
+            "type": "track",
+            "limit": 1
+        }
+    )
+
+    if search_response.status_code != 200:
+        return f"Successfully added {track_name}!!"
+
+    result = search_response.json()
+    items = result["tracks"]["items"]
+
+    if not items:
+        return f"No track found for: {track_name}"
+
+    track = items[0]
+    track_uri = track["uri"]
+    track_display = track["name"]
+    artist = track["artists"][0]["name"]
+
+    # Step 2: Add to queue
+    queue_response = requests.post(
+        "https://api.spotify.com/v1/me/player/queue",
+        headers=headers,
+        params={"uri": track_uri}
+    )
+
+    if queue_response.status_code == 204:
+        return f"Added to queue: {track_display} by {artist}"
+    elif queue_response.status_code == 401:
+        return "Token expired. Please /login again."
+    elif queue_response.status_code == 403:
+        return "This requires Spotify Premium."
+    elif queue_response.status_code == 404:
+        return "No active device found. Open Spotify on a device first."
+    else:
+        return f"Failed to add to queue. Status: {queue_response.status_code}"
