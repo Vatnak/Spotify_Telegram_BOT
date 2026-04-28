@@ -1,6 +1,6 @@
 # 🎵 Spodify Telegram Bot
 
-A Telegram bot that lets you control Spotify playback directly from your Telegram chat — search, play, pause, resume, and queue tracks without leaving the app.
+A Side_Project made by a sophomore student bachelor in Artificial Intelligence - Telegram bot that lets you control Spotify playback directly from your Telegram chat — search, play, pause, resume, and queue tracks without leaving the app.
 
 ---
 
@@ -111,4 +111,4 @@ python bot.py
 
 ## Author
 
-**Vatnak** — [@Vatnak](https://github.com/Vatnak)
+**Nakscott** — [@Vatnak](https://github.com/Vatnak)
