@@ -72,7 +72,7 @@ async def pause_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    telegram_id = str(update.message.from_user.id)
+    telegram_id = str(update.message.chat.id)
 
     if not context.args:
         await update.message.reply_text("Usage: /play <song name>\nExample: /play Blinding Lights")
@@ -82,15 +82,14 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(play(telegram_id, track_name))
 
 async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    telegram_id = str(update.message.from_user.id)
-    track_name = " ".join(context.args) 
+    telegram_id = str(update.message.chat.id)
     await update.message.reply_text(resume(telegram_id))
 
 async def add_to_queue_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    telegram_id = str(update.message.from_user.id)
+    telegram_id = str(update.message.chat.id)
 
     if not context.args:
-        await update.message.reply_text("Usage: /add <song name>\nExample: /add Blinding Lights")
+        await update.message.reply_text("Usage: /add <song name>\nExample: /add Blinding Lessons")
         return
 
     track_name = " ".join(context.args)

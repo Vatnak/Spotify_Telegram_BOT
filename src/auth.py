@@ -12,12 +12,12 @@ SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
 SCOPES = "user-read-playback-state user-modify-playback-state user-read-currently-playing"
-USERS_FILE = "data/user.json"
+USERS_FILE = Path(__file__).parent.parent / "data" / "user.json"
 
 def load_users():
-    if not os.path.exists(USERS_FILE):
+    if not os.path.exists(str(USERS_FILE)):
         return {}
-    with open(USERS_FILE, "r") as f:
+    with open(str(USERS_FILE), "r") as f:
         content = f.read().strip()
         if not content:  
             return {}
@@ -25,7 +25,8 @@ def load_users():
 
 
 def save_users(users):
-    with open(USERS_FILE, "w") as f:
+    os.makedirs(str(USERS_FILE.parent), exist_ok=True)
+    with open(str(USERS_FILE), "w") as f:
         json.dump(users, f, indent=2)
 
 

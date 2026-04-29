@@ -15,7 +15,7 @@ def spotify_callback():
         exchange_code(code, telegram_id)
         return "<h3>✅ Spotify connected! Go back to Telegram.</h3>"
     except Exception as e:
-        print("ERORR:", e)
+        print("ERROR:", e)
         return f"<h3>❌ Error: {e}</h3>"
 
 if __name__ == "__main__":
