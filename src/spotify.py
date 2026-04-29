@@ -1,6 +1,22 @@
 import requests
 from auth import get_valid_token
 
+def get_available_devices(telegram_id: str) -> list:
+    """Get list of available Spotify devices"""
+    token = get_valid_token(telegram_id)
+    if not token:
+        return []
+    
+    response = requests.get(
+        "https://api.spotify.com/v1/me/player/devices",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    
+    if response.status_code == 200:
+        devices = response.json().get("devices", [])
+        return devices
+    return []
+
 def get_now_playing(telegram_id: str) -> str:
     token = get_valid_token(telegram_id)
 
@@ -104,15 +120,37 @@ def resume(telegram_id: str) -> str:
     
     headers = {"Authorization": f"Bearer {token}"}
 
+    # Get available devices
+    devices = get_available_devices(telegram_id)
+    device_id = None
+    
+    # Try to find a phone/mobile device or active device
+    for device in devices:
+        if device.get("is_active") or device.get("type") == "Smartphone":
+            device_id = device.get("id")
+            break
+    
+    # If no mobile device, use the first available device
+    if not device_id and devices:
+        device_id = devices[0].get("id")
+    
+    # Prepare request params
+    params = {}
+    if device_id:
+        params["device_id"] = device_id
+
     response = requests.put(
         "https://api.spotify.com/v1/me/player/resume",
-        headers=headers
+        headers=headers,
+        params=params
     )
 
     if response.status_code == 200:
         return "▶️ Resumed playback"
     elif response.status_code == 404:
-        return "No active device found. Open Spotify on any device first."
+        if not devices:
+            return "❌ No devices found. Open Spotify on your phone first."
+        return "❌ No active device. Make sure Spotify is open on your phone."
     elif response.status_code == 403:
         return "❌ Spotify Premium required for playback control."
     else:
