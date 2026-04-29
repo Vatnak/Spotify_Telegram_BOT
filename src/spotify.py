@@ -50,14 +50,38 @@ def pause(telegram_id: str) -> str:
     if not token:
         return "You're not logged in. Use /login first"
     
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # Get available devices
+    devices = get_available_devices(telegram_id)
+    device_id = None
+    
+    # Try to find a phone/mobile device or active device
+    for device in devices:
+        if device.get("is_active") or device.get("type") == "Smartphone":
+            device_id = device.get("id")
+            break
+    
+    # If no mobile device, use the first available device
+    if not device_id and devices:
+        device_id = devices[0].get("id")
+    
+    # Prepare request params
+    params = {}
+    if device_id:
+        params["device_id"] = device_id
+    
     response = requests.put(
         "https://api.spotify.com/v1/me/player/pause",
-        headers={"Authorization": f"Bearer {token}"}
+        headers=headers,
+        params=params
     )
     if response.status_code == 200:
         return "⏸ Paused successfully"
     elif response.status_code == 404:
-        return "No active device found. Open Spotify on any device first."
+        if not devices:
+            return "❌ No devices found. Open Spotify on your phone first."
+        return "❌ No active device. Make sure Spotify is open on your phone."
     elif response.status_code == 403:
         return "❌ Spotify Premium required for playback control."
     elif response.status_code == 409:
@@ -98,15 +122,37 @@ def play(telegram_id: str, track_name: str) -> str:
     track_title = track["name"]
     artist = track["artists"][0]["name"]
 
-    # Step 2: Play the track
+    # Step 2: Get available devices and select target device
+    devices = get_available_devices(telegram_id)
+    device_id = None
+    
+    # Try to find a phone/mobile device or active device
+    for device in devices:
+        if device.get("is_active") or device.get("type") == "Smartphone":
+            device_id = device.get("id")
+            break
+    
+    # If no mobile device, use the first available device
+    if not device_id and devices:
+        device_id = devices[0].get("id")
+
+    # Step 3: Play the track on the selected device
+    play_data = {"uris": [track_uri]}
+    if device_id:
+        play_data["device_id"] = device_id
+    
     play_response = requests.put(
         "https://api.spotify.com/v1/me/player/play",
         headers=headers,
-        json={"uris": [track_uri]}
+        json=play_data
     )
 
     if play_response.status_code == 204:
         return f"▶️ Playing: {track_title} — {artist}"
+    elif play_response.status_code == 404:
+        if not devices:
+            return "❌ No devices found. Open Spotify on your phone first."
+        return "❌ No active device. Make sure Spotify is open on your phone."
     elif play_response.status_code == 403:
         return "⚠️ Spotify Premium required for playback control."
     else:
@@ -189,11 +235,29 @@ def add_queue(telegram_id: str, track_name: str) -> str:
     track_display = track["name"]
     artist = track["artists"][0]["name"] if track["artists"] else "Unknown Artist"
 
-    # Step 2: Add to queue
+    # Step 2: Get available devices and select target device
+    devices = get_available_devices(telegram_id)
+    device_id = None
+    
+    # Try to find a phone/mobile device or active device
+    for device in devices:
+        if device.get("is_active") or device.get("type") == "Smartphone":
+            device_id = device.get("id")
+            break
+    
+    # If no mobile device, use the first available device
+    if not device_id and devices:
+        device_id = devices[0].get("id")
+
+    # Step 3: Add to queue
+    params = {"uri": track_uri}
+    if device_id:
+        params["device_id"] = device_id
+    
     queue_response = requests.post(
         "https://api.spotify.com/v1/me/player/queue",
         headers=headers,
-        params={"uri": track_uri}
+        params=params
     )
 
     if queue_response.status_code == 204:
@@ -203,6 +267,8 @@ def add_queue(telegram_id: str, track_name: str) -> str:
     elif queue_response.status_code == 403:
         return "❌ This requires Spotify Premium."
     elif queue_response.status_code == 404:
-        return "No active device found. Open Spotify on a device first."
+        if not devices:
+            return "❌ No devices found. Open Spotify on your phone first."
+        return "❌ No active device. Make sure Spotify is open on your phone."
     else:
         return f"❌ Failed to add to queue. Status: {queue_response.status_code}"
