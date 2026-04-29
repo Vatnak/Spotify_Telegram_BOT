@@ -1,11 +1,11 @@
 def start():
-    return "Hi welcome to spodify trackiing bot, how can i help you"
+    return "Hi welcome to Spotify tracking bot! How can I help you?"
 
-def user_spodify():
-    return "This is your username and email_address"
+def user_spotify():
+    return "This is your username and email address"
 
 def help():
-    return "this is the list of all the command" 
+    return "This is the list of all the commands"
 
 def stop_bot():
-    return "Bot is stop"
+    return "Bot is stopping"

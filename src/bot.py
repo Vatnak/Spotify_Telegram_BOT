@@ -17,7 +17,18 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("here are all the list of command")
+    help_text = """🚫 *Available Commands:*
+
+/login - Connect your Spotify account
+/logout - Disconnect from Spotify
+/play <song name> - Search and play a track
+/pause - Pause current playback
+/resume - Resume paused playback
+/nowplaying - Show currently playing track
+/add <song name> - Add track to queue
+/stop - Stop the bot
+    """
+    await update.message.reply_text(help_text, parse_mode="Markdown")
 
 async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(stop_bot())
@@ -75,14 +86,14 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     track_name = " ".join(context.args) 
     await update.message.reply_text(resume(telegram_id))
 
-async def add_to_quene_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def add_to_queue_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = str(update.message.from_user.id)
 
     if not context.args:
         await update.message.reply_text("Usage: /add <song name>\nExample: /add Blinding Lights")
         return
 
-    track_name = " ".join(context.args)  
+    track_name = " ".join(context.args)
     await update.message.reply_text(add_queue(telegram_id, track_name))
 
 if __name__ == "__main__":
@@ -94,10 +105,10 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("login", login_command))
     app.add_handler(CommandHandler("nowplaying", now_playing))
     app.add_handler(CommandHandler("logout", logout_command))
-    app.add_handler(CommandHandler("Pause", pause_command))
+    app.add_handler(CommandHandler("pause", pause_command))
     app.add_handler(CommandHandler("play", play_command))
     app.add_handler(CommandHandler("resume", resume_command))
-    app.add_handler(CommandHandler("add", add_to_quene_command))
+    app.add_handler(CommandHandler("add", add_to_queue_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 

@@ -13,8 +13,6 @@ SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
 SCOPES = "user-read-playback-state user-modify-playback-state user-read-currently-playing"
 USERS_FILE = "data/user.json"
-print("CLIENT ID:", SPOTIFY_CLIENT_ID)
-print("REDIRECT:", SPOTIFY_REDIRECT_URI)
 
 def load_users():
     if not os.path.exists(USERS_FILE):

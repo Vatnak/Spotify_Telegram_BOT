@@ -5,41 +5,49 @@ def get_now_playing(telegram_id: str) -> str:
     token = get_valid_token(telegram_id)
 
     if not token:
-        return "You're not logged in, Use /login first"
+        return "You're not logged in. Use /login first"
     
     response = requests.get(
         "https://api.spotify.com/v1/me/player/currently-playing",
-        headers= {"Authorization": f"Bearer {token}"}
-)  
+        headers={"Authorization": f"Bearer {token}"}
+    )
 
     if response.status_code == 204:
         return "Nothing is playing right now."
     
+    if response.status_code != 200:
+        return f"❌ Error fetching current track: {response.status_code}"
+    
     data = response.json()
-    song = data["item"]["name"]
-    artist = data["item"]["artists"][0]["name"]
+    
+    if not data or data.get("item") is None:
+        return "Nothing is playing right now."
+    
+    song = data["item"].get("name", "Unknown")
+    artists = data["item"].get("artists", [])
+    artist = artists[0]["name"] if artists else "Unknown Artist"
     return f"🎵 {song} - {artist}"
 
 def pause(telegram_id: str) -> str:
     token = get_valid_token(telegram_id)
 
     if not token:
-        return "You're not logged in, use /login first"
+        return "You're not logged in. Use /login first"
     
     response = requests.put(
         "https://api.spotify.com/v1/me/player/pause",
-        headers = {"Authorization": f"Bearer {token}"}
-)
+        headers={"Authorization": f"Bearer {token}"}
+    )
     if response.status_code == 200:
         return "⏸ Paused successfully"
     elif response.status_code == 404:
-        return "No active device found — open Spotify on any device first"
+        return "No active device found. Open Spotify on any device first."
     elif response.status_code == 403:
-        return "Pause Succesful"
+        return "❌ Spotify Premium required for playback control."
     elif response.status_code == 409:
-        return "Nothing is playing right now"
+        return "Nothing is playing right now."
     else:
-        return f"Error: {response.status_code}"
+        return f"❌ Error pausing playback: {response.status_code}"
 
 def play(telegram_id: str, track_name: str) -> str:
     token = get_valid_token(telegram_id)
@@ -88,28 +96,29 @@ def play(telegram_id: str, track_name: str) -> str:
     else:
         return f"❌ Playback error {play_response.status_code}: {play_response.text}"
 
-def resume(telegram_id:str) -> str:
-
+def resume(telegram_id: str) -> str:
     token = get_valid_token(telegram_id)
 
     if not token:
-        return "please log in first use /login"
+        return "You're not logged in. Use /login first"
     
     headers = {"Authorization": f"Bearer {token}"}
 
-    responese = requests.put(
+    response = requests.put(
         "https://api.spotify.com/v1/me/player/resume",
-        headers = headers
+        headers=headers
     )
 
+    if response.status_code == 200:
+        return "▶️ Resumed playback"
+    elif response.status_code == 404:
+        return "No active device found. Open Spotify on any device first."
+    elif response.status_code == 403:
+        return "❌ Spotify Premium required for playback control."
+    else:
+        return f"❌ Error resuming playback: {response.status_code}"
 
-    track = play(telegram_id, track_name=telegram_id)
-    if responese.status_code == 200:
-        return f"Resume {track}"
-    else: 
-        return"hello world"
-
-def add_queue(telegram_id:str, track_name:str) -> str:
+def add_queue(telegram_id: str, track_name: str) -> str:
     token = get_valid_token(telegram_id)
 
     if not token:
@@ -129,18 +138,18 @@ def add_queue(telegram_id:str, track_name:str) -> str:
     )
 
     if search_response.status_code != 200:
-        return f"Successfully added {track_name}!!"
+        return f"❌ Search failed: {search_response.status_code}"
 
     result = search_response.json()
     items = result["tracks"]["items"]
 
     if not items:
-        return f"No track found for: {track_name}"
+        return f"❌ No track found for: {track_name}"
 
     track = items[0]
     track_uri = track["uri"]
     track_display = track["name"]
-    artist = track["artists"][0]["name"]
+    artist = track["artists"][0]["name"] if track["artists"] else "Unknown Artist"
 
     # Step 2: Add to queue
     queue_response = requests.post(
@@ -150,12 +159,12 @@ def add_queue(telegram_id:str, track_name:str) -> str:
     )
 
     if queue_response.status_code == 204:
-        return f"Added to queue: {track_display} by {artist}"
+        return f"✅ Added to queue: {track_display} by {artist}"
     elif queue_response.status_code == 401:
         return "Token expired. Please /login again."
     elif queue_response.status_code == 403:
-        return "This requires Spotify Premium."
+        return "❌ This requires Spotify Premium."
     elif queue_response.status_code == 404:
         return "No active device found. Open Spotify on a device first."
     else:
-        return f"Failed to add to queue. Status: {queue_response.status_code}"
+        return f"❌ Failed to add to queue. Status: {queue_response.status_code}"
