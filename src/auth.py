@@ -66,21 +66,34 @@ def exchange_code(code: str, telegram_id: str):
         }, 
         auth=(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
     )
-    print("Status:", response.status_code)
-    print("Raw response:", response.text)
-    data = response.json()
-    print("Spotify response:", data) 
+    try:
+        data = response.json()
+    except json.JSONDecodeError:
+        raise ValueError(f"Spotify token error (HTTP {response.status_code}).") from None
+    if not response.ok:
+        msg = data.get("error_description") or data.get("error") or response.text
+        raise ValueError(msg)
+    access_token = data.get("access_token")
+    refresh_token = data.get("refresh_token")
+    expires_in = data.get("expires_in")
+    if not access_token or not refresh_token or expires_in is None:
+        raise ValueError("Invalid token response from Spotify (missing fields).")
     users = load_users()
     users[telegram_id] = {
-        "access_token": data["access_token"],
-        "refresh_token": data["refresh_token"],
-        "expires_at": int(time.time()) + data["expires_in"],
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_at": int(time.time()) + int(expires_in),
     }
     save_users(users)
 
-def refresh_access_token(telegram_id: str):
+
+def refresh_access_token(telegram_id: str) -> bool:
     users = load_users()
-    refresh_token = users[telegram_id]["refresh_token"]
+    if telegram_id not in users:
+        return False
+    refresh_token = users[telegram_id].get("refresh_token")
+    if not refresh_token:
+        return False
     response = requests.post(
         "https://accounts.spotify.com/api/token",
         data={
@@ -89,20 +102,35 @@ def refresh_access_token(telegram_id: str):
         },
         auth=(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET),
     )
-    data = response.json()
-    users[telegram_id]["access_token"] = data["access_token"]
-    users[telegram_id]["expires_at"] = int(time.time()) + data["expires_in"]
+    try:
+        data = response.json()
+    except json.JSONDecodeError:
+        return False
+    if not response.ok:
+        return False
+    access_token = data.get("access_token")
+    if not access_token:
+        return False
+    users[telegram_id]["access_token"] = access_token
+    users[telegram_id]["expires_at"] = int(time.time()) + int(data.get("expires_in", 3600))
+    if data.get("refresh_token"):
+        users[telegram_id]["refresh_token"] = data["refresh_token"]
     save_users(users)
+    return True
 
 
 def get_valid_token(telegram_id: str) -> str | None:
     users = load_users()
     if telegram_id not in users:
         return None
-    if time.time() >= users[telegram_id]["expires_at"] - 60:
-        refresh_access_token(telegram_id)
+    expires_at = users[telegram_id].get("expires_at", 0)
+    if time.time() >= expires_at - 60:
+        if not refresh_access_token(telegram_id):
+            return None
         users = load_users()
-    return users[telegram_id]["access_token"]
+        if telegram_id not in users:
+            return None
+    return users[telegram_id].get("access_token")
 
 def logout(telegram_id: str):
     users = load_users()

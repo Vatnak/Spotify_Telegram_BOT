@@ -63,22 +63,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    help_text = """🚫 *Available Commands:*
+    help_text = """🚫 Available Commands:
 
-/login - Connect your Spotify account
-/logout - Disconnect from Spotify
-/play <song name> - Search and play a track
-/pause - Pause current playback
-/resume - Resume paused playback
-/nowplaying - Show currently playing track
-/add <song name> - Add track to queue
-/device <name|id> - Select playback device
-/stop - Stop the bot
-/cancel - Cancel current action
+/login — Connect your Spotify account
+/logout — Disconnect from Spotify
+/play song name — Search and play a track
+/pause — Pause current playback
+/resume — Resume paused playback
+/nowplaying — Show currently playing track
+/add song name — Add track to queue
+/device name or id — Select playback device
+/stop — Stop the bot
+/cancel — Cancel current action
     """
     await update.message.reply_text(
         help_text,
-        parse_mode="Markdown",
         reply_markup=main_menu_keyboard()
     )
 
@@ -155,7 +154,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         set_user_state(telegram_id, "awaiting_device")
         await update.message.reply_text(
             f"{devices_text}\n\nSend me the device name or ID to select:",
-            parse_mode="Markdown",
             reply_markup=main_menu_keyboard()
         )
         return
@@ -231,16 +229,17 @@ async def device_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         set_user_state(telegram_id, "awaiting_device")
         await update.message.reply_text(
             f"{devices_text}\n\nSend me the device name or ID to select:",
-            parse_mode="Markdown",
             reply_markup=main_menu_keyboard()
         )
         return
 
     device_query = " ".join(context.args)
-    await update.message.reply_text(set_device(telegram_id, device_query), parse_mode="Markdown")
+    await update.message.reply_text(set_device(telegram_id, device_query))
 
 
 if __name__ == "__main__":
+    if not TOKEN:
+        raise SystemExit("Missing Telegram_API in environment. Set your bot token in .env.")
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start_command))
