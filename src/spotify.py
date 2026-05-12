@@ -17,6 +17,34 @@ def get_available_devices(telegram_id: str) -> list:
         return devices
     return []
 
+
+def select_device(devices: list) -> str | None:
+    """Choose the best available device for playback."""
+    for device in devices:
+        if device.get("is_active") or device.get("type") == "Smartphone":
+            return device.get("id")
+    return devices[0].get("id") if devices else None
+
+
+def transfer_playback(telegram_id: str, device_id: str, play: bool = False) -> bool:
+    """Transfer the Spotify session to the chosen device."""
+    token = get_valid_token(telegram_id)
+    if not token:
+        return False
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    data = {"device_ids": [device_id], "play": play}
+    response = requests.put(
+        "https://api.spotify.com/v1/me/player",
+        headers=headers,
+        json=data
+    )
+    return response.status_code == 204
+
+
 def get_now_playing(telegram_id: str) -> str:
     token = get_valid_token(telegram_id)
 
@@ -124,26 +152,22 @@ def play(telegram_id: str, track_name: str) -> str:
 
     # Step 2: Get available devices and select target device
     devices = get_available_devices(telegram_id)
-    device_id = None
-    
-    # Try to find a phone/mobile device or active device
-    for device in devices:
-        if device.get("is_active") or device.get("type") == "Smartphone":
-            device_id = device.get("id")
-            break
-    
-    # If no mobile device, use the first available device
-    if not device_id and devices:
-        device_id = devices[0].get("id")
+    device_id = select_device(devices)
+
+    if not device_id:
+        return "❌ No devices found. Open Spotify on your phone or PC first."
+
+    # Transfer playback to the selected device if needed
+    transfer_playback(telegram_id, device_id, play=False)
 
     # Step 3: Play the track on the selected device
+    params = {"device_id": device_id}
     play_data = {"uris": [track_uri]}
-    if device_id:
-        play_data["device_id"] = device_id
     
     play_response = requests.put(
         "https://api.spotify.com/v1/me/player/play",
         headers=headers,
+        params=params,
         json=play_data
     )
 
@@ -168,18 +192,11 @@ def resume(telegram_id: str) -> str:
 
     # Get available devices
     devices = get_available_devices(telegram_id)
-    device_id = None
-    
-    # Try to find a phone/mobile device or active device
-    for device in devices:
-        if device.get("is_active") or device.get("type") == "Smartphone":
-            device_id = device.get("id")
-            break
-    
-    # If no mobile device, use the first available device
-    if not device_id and devices:
-        device_id = devices[0].get("id")
-    
+    device_id = select_device(devices)
+
+    if device_id:
+        transfer_playback(telegram_id, device_id, play=False)
+
     # Prepare request params
     params = {}
     if device_id:
@@ -237,23 +254,16 @@ def add_queue(telegram_id: str, track_name: str) -> str:
 
     # Step 2: Get available devices and select target device
     devices = get_available_devices(telegram_id)
-    device_id = None
-    
-    # Try to find a phone/mobile device or active device
-    for device in devices:
-        if device.get("is_active") or device.get("type") == "Smartphone":
-            device_id = device.get("id")
-            break
-    
-    # If no mobile device, use the first available device
-    if not device_id and devices:
-        device_id = devices[0].get("id")
+    device_id = select_device(devices)
+
+    if not device_id:
+        return "❌ No devices found. Open Spotify on your phone or PC first."
+
+    # Transfer playback to the selected device if needed
+    transfer_playback(telegram_id, device_id, play=False)
 
     # Step 3: Add to queue
-    params = {"uri": track_uri}
-    if device_id:
-        params["device_id"] = device_id
-    
+    params = {"uri": track_uri, "device_id": device_id}
     queue_response = requests.post(
         "https://api.spotify.com/v1/me/player/queue",
         headers=headers,
