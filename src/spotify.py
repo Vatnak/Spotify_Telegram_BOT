@@ -122,11 +122,16 @@ def transfer_playback(telegram_id: str, device_id: str, play: bool = False) -> b
     return response.status_code == 204
 
 
-def get_now_playing(telegram_id: str) -> str:
+def activate_device(telegram_id: str, device_id: str) -> bool:
+    """Activate the selected device if it is available but inactive."""
+    return transfer_playback(telegram_id, device_id, play=True)
+
+
+def get_now_playing(telegram_id: str) -> dict:
     token = get_valid_token(telegram_id)
 
     if not token:
-        return "You're not logged in. Use /login first"
+        return {"text": "You're not logged in. Use /login first."}
     
     response = requests.get(
         "https://api.spotify.com/v1/me/player/currently-playing",
@@ -134,20 +139,27 @@ def get_now_playing(telegram_id: str) -> str:
     )
 
     if response.status_code == 204:
-        return "Nothing is playing right now."
+        return {"text": "Nothing is playing right now."}
     
     if response.status_code != 200:
-        return f"❌ Error fetching current track: {response.status_code}"
+        return {"text": f"❌ Error fetching current track: {response.status_code}"}
     
     data = response.json()
     
     if not data or data.get("item") is None:
-        return "Nothing is playing right now."
+        return {"text": "Nothing is playing right now."}
     
-    song = data["item"].get("name", "Unknown")
-    artists = data["item"].get("artists", [])
+    item = data["item"]
+    song = item.get("name", "Unknown")
+    artists = item.get("artists", [])
     artist = artists[0]["name"] if artists else "Unknown Artist"
-    return f"🎵 {song} - {artist}"
+    album = item.get("album", {})
+    images = album.get("images", [])
+    image_url = images[0].get("url") if images else None
+    return {
+        "text": f"🎵 {song} - {artist}",
+        "image_url": image_url
+    }
 
 def pause(telegram_id: str) -> str:
     token = get_valid_token(telegram_id)
@@ -181,7 +193,7 @@ def pause(telegram_id: str) -> str:
         headers=headers,
         params=params
     )
-    if response.status_code == 200:
+    if response.status_code in (200, 204):
         return "⏸ Paused successfully"
     elif response.status_code == 404:
         if not devices:
@@ -194,11 +206,11 @@ def pause(telegram_id: str) -> str:
     else:
         return f"❌ Error pausing playback: {response.status_code}"
 
-def play(telegram_id: str, track_name: str) -> str:
+def play(telegram_id: str, track_name: str) -> dict:
     token = get_valid_token(telegram_id)
     
     if not token:
-        return "You're not logged in. Use /login first."
+        return {"text": "You're not logged in. Use /login first."}
     
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -214,18 +226,21 @@ def play(telegram_id: str, track_name: str) -> str:
     )
 
     if search_response.status_code != 200:
-        return f"❌ Search failed: {search_response.status_code}"
+        return {"text": f"❌ Search failed: {search_response.status_code}"}
 
     results = search_response.json()
     tracks = results["tracks"]["items"]
 
     if not tracks:
-        return f"❌ No results found for: {track_name}"
+        return {"text": f"❌ No results found for: {track_name}"}
 
     track = tracks[0]
     track_uri = track["uri"]               
     track_title = track["name"]
     artist = track["artists"][0]["name"]
+    album = track.get("album", {})
+    images = album.get("images", [])
+    image_url = images[0].get("url") if images else None
 
     # Step 2: Get available devices and select target device
     devices = get_available_devices(telegram_id)
@@ -234,10 +249,13 @@ def play(telegram_id: str, track_name: str) -> str:
         device_id = select_device(devices)
 
     if not device_id:
-        return "❌ No devices found. Open Spotify on your phone or PC first."
+        return {"text": "❌ No devices found. Open Spotify on your phone or PC first."}
 
     # Transfer playback to the selected device if needed
     transfer_playback(telegram_id, device_id, play=False)
+
+    # Force activation for background devices that are not currently active
+    activate_device(telegram_id, device_id)
 
     # Step 3: Play the track on the selected device
     params = {"device_id": device_id}
@@ -251,15 +269,18 @@ def play(telegram_id: str, track_name: str) -> str:
     )
 
     if play_response.status_code == 204:
-        return f"▶️ Playing: {track_title} — {artist}"
+        return {
+            "text": f"▶️ Playing: {track_title} — {artist}",
+            "image_url": image_url
+        }
     elif play_response.status_code == 404:
         if not devices:
-            return "❌ No devices found. Open Spotify on your phone first."
-        return "❌ No active device. Make sure Spotify is open on your phone."
+            return {"text": "❌ No devices found. Open Spotify on your phone first."}
+        return {"text": "❌ No active device. Make sure Spotify is open on your phone."}
     elif play_response.status_code == 403:
-        return "⚠️ Spotify Premium required for playback control."
+        return {"text": "⚠️ Spotify Premium required for playback control."}
     else:
-        return f"❌ Playback error {play_response.status_code}: {play_response.text}"
+        return {"text": f"❌ Playback error {play_response.status_code}: {play_response.text}"}
 
 def resume(telegram_id: str) -> str:
     token = get_valid_token(telegram_id)
@@ -284,13 +305,17 @@ def resume(telegram_id: str) -> str:
         params["device_id"] = device_id
 
     response = requests.put(
-        "https://api.spotify.com/v1/me/player/resume",
+        "https://api.spotify.com/v1/me/player/play",
         headers=headers,
         params=params
     )
 
-    if response.status_code == 200:
-        return "▶️ Resumed playback"
+    if response.status_code in (200, 204):
+        now_playing = get_now_playing(telegram_id)
+        if isinstance(now_playing, dict):
+            now_playing["text"] = f"▶️ Resumed playback\n\n{now_playing.get('text', '')}"
+            return now_playing
+        return {"text": "▶️ Resumed playback"}
     elif response.status_code == 404:
         if not devices:
             return "❌ No devices found. Open Spotify on your phone first."
@@ -340,10 +365,11 @@ def add_queue(telegram_id: str, track_name: str) -> str:
         device_id = select_device(devices)
 
     if not device_id:
-        return "❌ No devices found. Open Spotify on your phone or PC first."
+        return {"text": "❌ No devices found. Open Spotify on your phone or PC first."}
 
-    # Transfer playback to the selected device if needed
+    # Transfer playback to the selected device and activate it if needed
     transfer_playback(telegram_id, device_id, play=False)
+    activate_device(telegram_id, device_id)
 
     # Step 3: Add to queue
     params = {"uri": track_uri, "device_id": device_id}
@@ -353,7 +379,7 @@ def add_queue(telegram_id: str, track_name: str) -> str:
         params=params
     )
 
-    if queue_response.status_code == 204:
+    if queue_response.status_code in (200, 201, 202, 204):
         return f"✅ Added to queue: {track_display} by {artist}"
     elif queue_response.status_code == 401:
         return "Token expired. Please /login again."
@@ -364,4 +390,4 @@ def add_queue(telegram_id: str, track_name: str) -> str:
             return "❌ No devices found. Open Spotify on your phone first."
         return "❌ No active device. Make sure Spotify is open on your phone."
     else:
-        return f"❌ Failed to add to queue. Status: {queue_response.status_code}"
+        return f"❌ Failed to add to queue. Status: {queue_response.status_code} - {queue_response.text}"
