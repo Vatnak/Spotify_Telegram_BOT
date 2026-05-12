@@ -1,5 +1,5 @@
 import requests
-from auth import get_valid_token
+from auth import get_valid_token, get_selected_device, set_selected_device
 
 def get_available_devices(telegram_id: str) -> list:
     """Get list of available Spotify devices"""
@@ -16,6 +16,83 @@ def get_available_devices(telegram_id: str) -> list:
         devices = response.json().get("devices", [])
         return devices
     return []
+
+
+def get_devices(telegram_id: str) -> str:
+    token = get_valid_token(telegram_id)
+    if not token:
+        return "You're not logged in. Use /login first."
+
+    devices = get_available_devices(telegram_id)
+    if not devices:
+        return "No Spotify devices found. Open Spotify on your phone or PC."
+
+    lines = []
+    for index, device in enumerate(devices, start=1):
+        status = "✅ Active" if device.get("is_active") else "❌ Inactive"
+        name = device.get("name", "Unknown")
+        device_type = device.get("type", "Unknown")
+        device_id = device.get("id", "Unknown")
+        lines.append(
+            f"{index}. {name} ({device_type}) — {status}\nID: `{device_id}`"
+        )
+
+    selected_device_id = get_selected_device(telegram_id)
+    if selected_device_id:
+        lines.append(f"\nSelected device ID: `{selected_device_id}`")
+
+    return "Available Spotify devices:\n" + "\n\n".join(lines)
+
+
+def get_selected_device_id(telegram_id: str) -> str | None:
+    selected_device_id = get_selected_device(telegram_id)
+    if not selected_device_id:
+        return None
+
+    devices = get_available_devices(telegram_id)
+    for device in devices:
+        if device.get("id") == selected_device_id:
+            return selected_device_id
+    return None
+
+
+def find_device_by_query(devices: list, query: str) -> dict | None:
+    query_lower = query.lower().strip()
+    if not query_lower:
+        return None
+
+    for device in devices:
+        if device.get("id") == query:
+            return device
+
+    exact_matches = [d for d in devices if d.get("name", "").lower() == query_lower]
+    if exact_matches:
+        return exact_matches[0]
+
+    partial_matches = [d for d in devices if query_lower in d.get("name", "").lower()]
+    if len(partial_matches) == 1:
+        return partial_matches[0]
+
+    return None
+
+
+def set_device(telegram_id: str, device_query: str) -> str:
+    token = get_valid_token(telegram_id)
+    if not token:
+        return "You're not logged in. Use /login first."
+
+    devices = get_available_devices(telegram_id)
+    if not devices:
+        return "No Spotify devices found. Open Spotify on your phone or PC."
+
+    device = find_device_by_query(devices, device_query)
+    if not device:
+        return "Device not found. Use /devices to list available devices."
+
+    set_selected_device(telegram_id, device.get("id"))
+    name = device.get("name", "Unknown")
+    device_type = device.get("type", "Unknown")
+    return f"Selected device: {name} ({device_type})\nID: `{device.get('id')}`"
 
 
 def select_device(devices: list) -> str | None:
@@ -152,7 +229,9 @@ def play(telegram_id: str, track_name: str) -> str:
 
     # Step 2: Get available devices and select target device
     devices = get_available_devices(telegram_id)
-    device_id = select_device(devices)
+    device_id = get_selected_device_id(telegram_id)
+    if not device_id:
+        device_id = select_device(devices)
 
     if not device_id:
         return "❌ No devices found. Open Spotify on your phone or PC first."
@@ -192,7 +271,9 @@ def resume(telegram_id: str) -> str:
 
     # Get available devices
     devices = get_available_devices(telegram_id)
-    device_id = select_device(devices)
+    device_id = get_selected_device_id(telegram_id)
+    if not device_id:
+        device_id = select_device(devices)
 
     if device_id:
         transfer_playback(telegram_id, device_id, play=False)
@@ -254,7 +335,9 @@ def add_queue(telegram_id: str, track_name: str) -> str:
 
     # Step 2: Get available devices and select target device
     devices = get_available_devices(telegram_id)
-    device_id = select_device(devices)
+    device_id = get_selected_device_id(telegram_id)
+    if not device_id:
+        device_id = select_device(devices)
 
     if not device_id:
         return "❌ No devices found. Open Spotify on your phone or PC first."

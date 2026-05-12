@@ -26,6 +26,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /resume - Resume paused playback
 /nowplaying - Show currently playing track
 /add <song name> - Add track to queue
+/devices - Show available Spotify devices
+/device <name|id> - Select playback device
 /stop - Stop the bot
     """
     await update.message.reply_text(help_text, parse_mode="Markdown")
@@ -95,6 +97,22 @@ async def add_to_queue_command(update: Update, context: ContextTypes.DEFAULT_TYP
     track_name = " ".join(context.args)
     await update.message.reply_text(add_queue(telegram_id, track_name))
 
+
+async def devices_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telegram_id = str(update.message.chat.id)
+    await update.message.reply_text(get_devices(telegram_id), parse_mode="Markdown")
+
+
+async def device_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telegram_id = str(update.message.chat.id)
+    if not context.args:
+        await update.message.reply_text("Usage: /device <name or id>\nExample: /device My Phone")
+        return
+
+    device_query = " ".join(context.args)
+    await update.message.reply_text(set_device(telegram_id, device_query), parse_mode="Markdown")
+
+
 if __name__ == "__main__":
     app = Application.builder().token(TOKEN).build()
 
@@ -108,6 +126,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("play", play_command))
     app.add_handler(CommandHandler("resume", resume_command))
     app.add_handler(CommandHandler("add", add_to_queue_command))
+    app.add_handler(CommandHandler("devices", devices_command))
+    app.add_handler(CommandHandler("device", device_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 

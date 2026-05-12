@@ -30,6 +30,21 @@ def save_users(users):
         json.dump(users, f, indent=2)
 
 
+def get_selected_device(telegram_id: str) -> str | None:
+    users = load_users()
+    if telegram_id not in users:
+        return None
+    return users[telegram_id].get("selected_device_id")
+
+
+def set_selected_device(telegram_id: str, device_id: str):
+    users = load_users()
+    if telegram_id not in users:
+        return
+    users[telegram_id]["selected_device_id"] = device_id
+    save_users(users)
+
+
 def generate_auth_url(telegram_id: str) -> str:
     params = {
         "client_id": SPOTIFY_CLIENT_ID,
