@@ -12,7 +12,22 @@ import os
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-TOKEN = os.getenv("Telegram_API")
+
+def _telegram_token() -> str | None:
+    """Render/Linux env is case-sensitive; support common names used in dashboards."""
+    for key in (
+        "Telegram_API",
+        "TELEGRAM_BOT_TOKEN",
+        "BOT_TOKEN",
+        "TELEGRAM_API",
+    ):
+        val = os.getenv(key)
+        if val and str(val).strip():
+            return str(val).strip()
+    return None
+
+
+TOKEN = _telegram_token()
 BOT_USERNAME = "@SpodifyTrack_bot"
 USER_STATES = {}
 
@@ -243,8 +258,18 @@ async def device_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 if __name__ == "__main__":
     if not TOKEN:
-        raise SystemExit("Missing Telegram_API in environment. Set your bot token in .env.")
-    app = Application.builder().token(TOKEN).build()
+        raise SystemExit(
+            "Missing bot token. Set one of these in the environment (e.g. Render → Environment): "
+            "Telegram_API, TELEGRAM_BOT_TOKEN, or BOT_TOKEN."
+        )
+
+    async def _post_init(app: Application) -> None:
+        await app.bot.delete_webhook(drop_pending_updates=True)
+        me = await app.bot.get_me()
+        print(f"Telegram bot ready: @{me.username} (id={me.id})", flush=True)
+        print("Users must send /start (or tap Start) before the menu appears.", flush=True)
+
+    app = Application.builder().token(TOKEN).post_init(_post_init).build()
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
@@ -264,7 +289,7 @@ if __name__ == "__main__":
 
     print("Bot is running...")
     print(f"Spotify logins are stored in: {get_db_path()}")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
             
 
 

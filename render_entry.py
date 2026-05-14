@@ -24,6 +24,8 @@ def _child_env() -> dict[str, str]:
         env["PYTHONPATH"] = f"{extra}{os.pathsep}{existing}"
     else:
         env["PYTHONPATH"] = extra
+    # So bot tracebacks and prints show up in Render logs immediately.
+    env.setdefault("PYTHONUNBUFFERED", "1")
     return env
 
 
@@ -71,7 +73,17 @@ def main() -> int:
         [sys.executable, str(SRC / "bot.py")],
         cwd=str(ROOT),
         env=env,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
     )
+
+    time.sleep(4)
+    if bot.poll() is not None:
+        sys.stderr.write(
+            f"render_entry: Telegram bot subprocess exited early (code={bot.returncode}). "
+            "Set TELEGRAM_BOT_TOKEN or Telegram_API on Render; "
+            "stop any other instance using the same token (local run, second host).\n"
+        )
 
     def shutdown(*_: object) -> None:
         for proc in (gunicorn, bot):
