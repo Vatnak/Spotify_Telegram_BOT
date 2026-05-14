@@ -5,3 +5,4 @@ user.json
 requirements.txt
 *.pyc
 *.pyo
+*.db
