@@ -10,3 +10,6 @@ services:
     # Python entrypoint avoids bash + CRLF (Windows) breaking Linux on Render.
     startCommand: python render_entry.py
     healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.4"
