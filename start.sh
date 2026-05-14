@@ -1,15 +1,7 @@
 #!/usr/bin/env bash
-# Local dev: Spotify callback + Telegram bot (same machine = one SQLite DB).
+# Used by Render if Start Command is `bash start.sh`.
+# Delegates to render_entry.py: Gunicorn on $PORT + Telegram bot (shared SQLite).
 set -euo pipefail
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
-export PYTHONPATH="${ROOT}/src${PYTHONPATH:+:$PYTHONPATH}"
-
-PORT="${PORT:-8000}"
-python src/callback_server.py &
-SERVER_PID=$!
-
-sleep 2
-python src/bot.py
-kill "${SERVER_PID}" 2>/dev/null || true
+exec python render_entry.py
