@@ -7,5 +7,6 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: bash render-start.sh
+    # Python entrypoint avoids bash + CRLF (Windows) breaking Linux on Render.
+    startCommand: python render_entry.py
     healthCheckPath: /health
