@@ -1,3 +1,4 @@
+import time
 import requests
 from auth import get_valid_token, get_selected_device, set_selected_device
 
@@ -40,6 +41,12 @@ def get_devices(telegram_id: str) -> str:
     selected_device_id = get_selected_device(telegram_id)
     if selected_device_id:
         lines.append(f"\nSelected device ID: `{selected_device_id}`")
+
+    if not any(d.get("is_active") for d in devices):
+        lines.append(
+            "\nTip: if Play or Queue fails, open Spotify on that device and start any song once, "
+            "then try the bot again."
+        )
 
     return "Available Spotify devices:\n" + "\n\n".join(lines)
 
@@ -97,10 +104,38 @@ def set_device(telegram_id: str, device_query: str) -> str:
 
 def select_device(devices: list) -> str | None:
     """Choose the best available device for playback."""
+    if not devices:
+        return None
     for device in devices:
-        if device.get("is_active") or device.get("type") == "Smartphone":
+        if device.get("is_active"):
             return device.get("id")
-    return devices[0].get("id") if devices else None
+    for prefer in ("Smartphone", "Speaker", "TV", "Computer", "WebPlayer"):
+        for device in devices:
+            if device.get("type") == prefer:
+                return device.get("id")
+    return devices[0].get("id")
+
+
+def _prepare_device_for_control(telegram_id: str, device_id: str) -> None:
+    """
+    Wake / claim the device before play, queue, or resume.
+
+    Spotify often returns 404 until the client has a recent playback session; short
+    delays after transfer+play=true improve reliability but cannot replace the user
+    opening Spotify and starting playback once on that device when the API still refuses.
+    """
+    transfer_playback(telegram_id, device_id, play=False)
+    time.sleep(0.35)
+    activate_device(telegram_id, device_id)
+    time.sleep(0.55)
+
+
+def _device_not_ready_hint() -> str:
+    return (
+        "❌ Spotify has no ready playback device for this account.\n\n"
+        "Open Spotify on your phone or computer, start any song once (so the app is "
+        "really playing), then use 📱 Select Device here and try again."
+    )
 
 
 def transfer_playback(telegram_id: str, device_id: str, play: bool = False) -> bool:
@@ -252,22 +287,28 @@ def play(telegram_id: str, track_name: str) -> dict:
     if not device_id:
         return {"text": "❌ No devices found. Open Spotify on your phone or PC first."}
 
-    # Transfer playback to the selected device if needed
-    transfer_playback(telegram_id, device_id, play=False)
-
-    # Force activation for background devices that are not currently active
-    activate_device(telegram_id, device_id)
+    _prepare_device_for_control(telegram_id, device_id)
 
     # Step 3: Play the track on the selected device
     params = {"device_id": device_id}
     play_data = {"uris": [track_uri]}
-    
+
     play_response = requests.put(
         "https://api.spotify.com/v1/me/player/play",
         headers=headers,
         params=params,
-        json=play_data
+        json=play_data,
     )
+
+    if play_response.status_code == 404:
+        devices = get_available_devices(telegram_id)
+        _prepare_device_for_control(telegram_id, device_id)
+        play_response = requests.put(
+            "https://api.spotify.com/v1/me/player/play",
+            headers=headers,
+            params=params,
+            json=play_data,
+        )
 
     if play_response.status_code == 204:
         return {
@@ -277,7 +318,7 @@ def play(telegram_id: str, track_name: str) -> dict:
     elif play_response.status_code == 404:
         if not devices:
             return {"text": "❌ No devices found. Open Spotify on your phone first."}
-        return {"text": "❌ No active device. Make sure Spotify is open on your phone."}
+        return {"text": _device_not_ready_hint()}
     elif play_response.status_code == 403:
         return {"text": "⚠️ Spotify Premium required for playback control."}
     else:
@@ -298,7 +339,7 @@ def resume(telegram_id: str) -> dict:
         device_id = select_device(devices)
 
     if device_id:
-        transfer_playback(telegram_id, device_id, play=False)
+        _prepare_device_for_control(telegram_id, device_id)
 
     # Prepare request params
     params = {}
@@ -308,8 +349,16 @@ def resume(telegram_id: str) -> dict:
     response = requests.put(
         "https://api.spotify.com/v1/me/player/play",
         headers=headers,
-        params=params
+        params=params,
     )
+
+    if response.status_code == 404 and device_id:
+        _prepare_device_for_control(telegram_id, device_id)
+        response = requests.put(
+            "https://api.spotify.com/v1/me/player/play",
+            headers=headers,
+            params=params,
+        )
 
     if response.status_code in (200, 204):
         now_playing = get_now_playing(telegram_id)
@@ -320,7 +369,7 @@ def resume(telegram_id: str) -> dict:
     elif response.status_code == 404:
         if not devices:
             return {"text": "❌ No devices found. Open Spotify on your phone first."}
-        return {"text": "❌ No active device. Make sure Spotify is open on your phone."}
+        return {"text": _device_not_ready_hint()}
     elif response.status_code == 403:
         return {"text": "❌ Spotify Premium required for playback control."}
     else:
@@ -369,17 +418,24 @@ def add_queue(telegram_id: str, track_name: str) -> str:
     if not device_id:
         return "❌ No devices found. Open Spotify on your phone or PC first."
 
-    # Transfer playback to the selected device and activate it if needed
-    transfer_playback(telegram_id, device_id, play=False)
-    activate_device(telegram_id, device_id)
+    _prepare_device_for_control(telegram_id, device_id)
 
     # Step 3: Add to queue
     params = {"uri": track_uri, "device_id": device_id}
     queue_response = requests.post(
         "https://api.spotify.com/v1/me/player/queue",
         headers=headers,
-        params=params
+        params=params,
     )
+
+    if queue_response.status_code == 404:
+        devices = get_available_devices(telegram_id)
+        _prepare_device_for_control(telegram_id, device_id)
+        queue_response = requests.post(
+            "https://api.spotify.com/v1/me/player/queue",
+            headers=headers,
+            params=params,
+        )
 
     if queue_response.status_code in (200, 201, 202, 204):
         return f"✅ Added to queue: {track_display} by {artist}"
@@ -390,6 +446,6 @@ def add_queue(telegram_id: str, track_name: str) -> str:
     elif queue_response.status_code == 404:
         if not devices:
             return "❌ No devices found. Open Spotify on your phone first."
-        return "❌ No active device. Make sure Spotify is open on your phone."
+        return _device_not_ready_hint()
     else:
         return f"❌ Failed to add to queue. Status: {queue_response.status_code} - {queue_response.text}"
