@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from command import start, stop_bot
@@ -7,7 +9,8 @@ from auth import generate_auth_url, logout
 from spotify import *
 from db import get_db_path, init_db
 import os
-load_dotenv()
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 TOKEN = os.getenv("Telegram_API")
 BOT_USERNAME = "@SpodifyTrack_bot"

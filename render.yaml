@@ -1,0 +1,11 @@
+# https://render.com/docs/blueprint-spec
+# Set env in the dashboard or here: Telegram_API, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET,
+# SPOTIFY_REDIRECT_URI (must be https://<this-service-host>/callback)
+services:
+  - type: web
+    name: spodify-telegram
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash render-start.sh
+    healthCheckPath: /health

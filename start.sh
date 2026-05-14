@@ -1,18 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Local dev: Spotify callback + Telegram bot (same machine = one SQLite DB).
+set -euo pipefail
 
-echo "Starting Spotify Telegram Bot..."
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+export PYTHONPATH="${ROOT}/src${PYTHONPATH:+:$PYTHONPATH}"
 
-set -e
-
-# Start callback server in background
+PORT="${PORT:-8000}"
 python src/callback_server.py &
 SERVER_PID=$!
 
-# Give it a second to start
 sleep 2
-
-# Start bot (foreground - REQUIRED)
 python src/bot.py
-
-# If bot stops, kill server
-kill $SERVER_PID
+kill "${SERVER_PID}" 2>/dev/null || true

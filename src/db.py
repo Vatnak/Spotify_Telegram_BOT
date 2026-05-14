@@ -3,10 +3,17 @@ import shutil
 import sqlite3
 from pathlib import Path
 
-# Project root: parent of `src/` — keeps `data/users.db` next to `.env` so it is easy to find.
+# Project root: parent of `src/` — default DB at <root>/data/users.db.
+# On Render, set DATA_DIR to a persistent disk mount (e.g. /var/data) so logins survive restarts.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _SRC_DIR = Path(__file__).resolve().parent
-DB_PATH = _PROJECT_ROOT / "data" / "users.db"
+
+_data_dir = os.environ.get("DATA_DIR", "").strip()
+if _data_dir:
+    DB_PATH = Path(_data_dir).resolve() / "users.db"
+else:
+    DB_PATH = _PROJECT_ROOT / "data" / "users.db"
+
 _LEGACY_DB_PATH = _SRC_DIR / "data" / "users.db"
 
 _legacy_copy_done = False
