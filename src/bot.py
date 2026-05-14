@@ -5,7 +5,7 @@ from response import handle_response
 from dotenv import load_dotenv
 from auth import generate_auth_url, logout
 from spotify import *
-
+from db import get_db_path, init_db
 import os
 load_dotenv()
 
@@ -13,6 +13,7 @@ TOKEN = os.getenv("Telegram_API")
 BOT_USERNAME = "@SpodifyTrack_bot"
 USER_STATES = {}
 
+init_db()
 
 def main_menu_keyboard():
     keyboard = [
@@ -259,6 +260,7 @@ if __name__ == "__main__":
 
 
     print("Bot is running...")
+    print(f"Spotify logins are stored in: {get_db_path()}")
     app.run_polling()
             
 

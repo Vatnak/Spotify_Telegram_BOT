@@ -1,5 +1,8 @@
 from flask import Flask, request
 from auth import exchange_code
+from db import init_db
+
+init_db()
 
 app = Flask(__name__)
 

@@ -151,7 +151,7 @@ def get_now_playing(telegram_id: str) -> dict:
     
     item = data["item"]
     song = item.get("name", "Unknown")
-    artists = item.get("artists", [])
+    artists = item.get("artists") or []
     artist = artists[0]["name"] if artists else "Unknown Artist"
     album = item.get("album", {})
     images = album.get("images", [])
@@ -237,7 +237,8 @@ def play(telegram_id: str, track_name: str) -> dict:
     track = tracks[0]
     track_uri = track["uri"]               
     track_title = track["name"]
-    artist = track["artists"][0]["name"]
+    artists = track.get("artists") or []
+    artist = artists[0]["name"] if artists else "Unknown Artist"
     album = track.get("album", {})
     images = album.get("images", [])
     image_url = images[0].get("url") if images else None
@@ -356,7 +357,8 @@ def add_queue(telegram_id: str, track_name: str) -> str:
     track = items[0]
     track_uri = track["uri"]
     track_display = track["name"]
-    artist = track["artists"][0]["name"] if track["artists"] else "Unknown Artist"
+    artists = track.get("artists") or []
+    artist = artists[0]["name"] if artists else "Unknown Artist"
 
     # Step 2: Get available devices and select target device
     devices = get_available_devices(telegram_id)
