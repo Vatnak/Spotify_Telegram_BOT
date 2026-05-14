@@ -1,6 +1,10 @@
 from pathlib import Path
 
+import logging
+import os
+
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.error import Conflict
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from command import start, stop_bot
 from response import handle_response
@@ -8,7 +12,6 @@ from dotenv import load_dotenv
 from auth import generate_auth_url, logout
 from spotify import *
 from db import get_db_path, init_db
-import os
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -256,7 +259,24 @@ async def device_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(set_device(telegram_id, device_query))
 
 
+async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    err = context.error
+    log = logging.getLogger(__name__)
+    if isinstance(err, Conflict):
+        log.error(
+            "Telegram Conflict: another process is already calling getUpdates with this bot token. "
+            "Stop any local `python src/bot.py` / IDE run, remove a duplicate Render Worker that "
+            "runs the bot, or wait ~1 minute after a deploy so the old instance stops."
+        )
+        return
+    log.exception("Update handler raised", exc_info=err)
+
+
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     if not TOKEN:
         raise SystemExit(
             "Missing bot token. Set one of these in the environment (e.g. Render → Environment): "
@@ -268,8 +288,13 @@ if __name__ == "__main__":
         me = await app.bot.get_me()
         print(f"Telegram bot ready: @{me.username} (id={me.id})", flush=True)
         print("Users must send /start (or tap Start) before the menu appears.", flush=True)
+        print(
+            "Tip: if logs show Conflict, only one machine may poll this token (stop local bot or duplicate services).",
+            flush=True,
+        )
 
     app = Application.builder().token(TOKEN).post_init(_post_init).build()
+    app.add_error_handler(_error_handler)
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
