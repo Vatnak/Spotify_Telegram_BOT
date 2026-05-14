@@ -12,7 +12,35 @@ load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
-SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
+
+
+def _is_local_redirect(url: str) -> bool:
+    u = url.lower()
+    return "127.0.0.1" in u or "localhost" in u
+
+
+def _resolve_spotify_redirect_uri() -> str | None:
+    """
+    Spotify must redirect to a URL that actually runs this app's /callback.
+
+    On Render, SPOTIFY_REDIRECT_URI often still points at localhost from a local .env copy.
+    In that case use RENDER_EXTERNAL_URL (https://<service>.onrender.com) + /callback.
+    """
+    explicit = (os.getenv("SPOTIFY_REDIRECT_URI") or "").strip()
+    on_render = os.getenv("RENDER", "").lower() == "true"
+    render_base = (os.getenv("RENDER_EXTERNAL_URL") or "").strip().rstrip("/")
+    public_base = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+
+    if explicit and not (on_render and _is_local_redirect(explicit)):
+        return explicit
+    if on_render and render_base:
+        return f"{render_base}/callback"
+    if public_base:
+        return f"{public_base}/callback"
+    return explicit or None
+
+
+SPOTIFY_REDIRECT_URI = _resolve_spotify_redirect_uri()
 SCOPES = "user-read-playback-state user-modify-playback-state user-read-currently-playing"
 
 
@@ -28,6 +56,15 @@ def set_selected_device(telegram_id: str, device_id: str):
 
 
 def generate_auth_url(telegram_id: str) -> str:
+    if not SPOTIFY_CLIENT_ID:
+        raise ValueError("Missing SPOTIFY_CLIENT_ID in environment.")
+    if not SPOTIFY_REDIRECT_URI:
+        raise ValueError(
+            "Spotify redirect URI is not set. On Render, set SPOTIFY_REDIRECT_URI to "
+            "https://<your-service>.onrender.com/callback (and add the same URL in the Spotify "
+            "Developer Dashboard), or rely on RENDER_EXTERNAL_URL when SPOTIFY_REDIRECT_URI "
+            "is localhost."
+        )
     params = {
         "client_id": SPOTIFY_CLIENT_ID,
         "response_type": "code",
@@ -43,6 +80,12 @@ def exchange_code(code: str, telegram_id: str):
         int(telegram_id)
     except (TypeError, ValueError):
         raise ValueError("Invalid login session. Use /login from Telegram again.") from None
+
+    if not SPOTIFY_REDIRECT_URI:
+        raise ValueError(
+            "Spotify redirect URI is not configured; token exchange cannot complete. "
+            "Set SPOTIFY_REDIRECT_URI to your public /callback URL (same value used in login)."
+        )
 
     response = requests.post(
         "https://accounts.spotify.com/api/token",

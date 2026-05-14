@@ -1,6 +1,7 @@
 # https://render.com/docs/blueprint-spec
 # Set env in the dashboard or here: Telegram_API, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET,
-# SPOTIFY_REDIRECT_URI (must be https://<this-service-host>/callback)
+# SPOTIFY_REDIRECT_URI: https://<this-host>/callback (must match Spotify app Redirect URIs).
+# Localhost in env is auto-replaced on Render via RENDER_EXTERNAL_URL in auth.py.
 services:
   - type: web
     name: spodify-telegram
