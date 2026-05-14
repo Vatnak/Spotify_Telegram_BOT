@@ -35,20 +35,35 @@ def _resolve_spotify_redirect_uri() -> str | None:
     """
     Spotify must redirect to a URL that actually runs this app's /callback.
 
-    On Render, SPOTIFY_REDIRECT_URI often still points at localhost from a local .env copy.
-    In that case use RENDER_EXTERNAL_URL (https://<service>.onrender.com) + /callback.
+    On Render, prefer the live service URL (RENDER_EXTERNAL_URL) when SPOTIFY_REDIRECT_URI
+    is localhost or points at a different host than this deployment — otherwise Spotify
+    returns "redirect_uri: Not matching configuration" if the env is stale.
     """
     explicit = (os.getenv("SPOTIFY_REDIRECT_URI") or "").strip()
     on_render = os.getenv("RENDER", "").lower() == "true"
     render_base = (os.getenv("RENDER_EXTERNAL_URL") or "").strip().rstrip("/")
     public_base = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    log = logging.getLogger(__name__)
+
+    if public_base:
+        return _normalize_spotify_redirect_uri(f"{public_base}/callback")
+
+    if on_render and render_base:
+        canonical = _normalize_spotify_redirect_uri(f"{render_base}/callback")
+        if not explicit or _is_local_redirect(explicit):
+            return canonical
+        ex_norm = _normalize_spotify_redirect_uri(explicit)
+        if ex_norm != canonical:
+            log.warning(
+                "SPOTIFY_REDIRECT_URI (%r) does not match this service (%r); using the Render URL for OAuth.",
+                ex_norm,
+                canonical,
+            )
+        return canonical
 
     if explicit and not (on_render and _is_local_redirect(explicit)):
         return _normalize_spotify_redirect_uri(explicit)
-    if on_render and render_base:
-        return _normalize_spotify_redirect_uri(f"{render_base}/callback")
-    if public_base:
-        return _normalize_spotify_redirect_uri(f"{public_base}/callback")
+
     return _normalize_spotify_redirect_uri(explicit) if explicit else None
 
 

@@ -1,7 +1,9 @@
 from pathlib import Path
 
+import hashlib
 import logging
 import os
+import time
 
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.error import Conflict
@@ -259,17 +261,53 @@ async def device_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(set_device(telegram_id, device_query))
 
 
+_last_conflict_log_ts = 0.0
+
+
 async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    global _last_conflict_log_ts
     err = context.error
     log = logging.getLogger(__name__)
     if isinstance(err, Conflict):
-        log.error(
-            "Telegram Conflict: another process is already calling getUpdates with this bot token. "
-            "Stop any local `python src/bot.py` / IDE run, remove a duplicate Render Worker that "
-            "runs the bot, or wait ~1 minute after a deploy so the old instance stops."
-        )
+        now = time.monotonic()
+        if now - _last_conflict_log_ts >= 90.0:
+            _last_conflict_log_ts = now
+            log.error(
+                "Telegram Conflict: another process is already calling getUpdates with this bot token. "
+                "Stop any local `python src/bot.py` / IDE run, remove a duplicate Render Worker that "
+                "runs the bot, or wait ~1 minute after a deploy so the old instance stops."
+            )
         return
     log.exception("Update handler raised", exc_info=err)
+
+
+def _acquire_polling_lock(token: str) -> None:
+    """On Linux, only one bot.py per token may poll on this host (avoids duplicate subprocess)."""
+    if os.name != "posix":
+        return
+    import atexit
+    import fcntl
+
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:20]
+    lock_path = Path(os.getenv("TMPDIR", "/tmp")) / f"spodify_telegram_poll_{digest}.lock"
+    fp = open(lock_path, "w", encoding="utf-8")
+    try:
+        fcntl.flock(fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as e:
+        fp.close()
+        raise SystemExit(
+            f"Another bot process already holds the polling lock ({lock_path}). "
+            "Stop the duplicate bot on this machine."
+        ) from e
+
+    def _release() -> None:
+        try:
+            fcntl.flock(fp.fileno(), fcntl.LOCK_UN)
+            fp.close()
+        except OSError:
+            pass
+
+    atexit.register(_release)
 
 
 if __name__ == "__main__":
@@ -285,6 +323,8 @@ if __name__ == "__main__":
             "Missing bot token. Set one of these in the environment (e.g. Render → Environment): "
             "Telegram_API, TELEGRAM_BOT_TOKEN, or BOT_TOKEN."
         )
+
+    _acquire_polling_lock(TOKEN)
 
     async def _post_init(app: Application) -> None:
         await app.bot.delete_webhook(drop_pending_updates=True)
