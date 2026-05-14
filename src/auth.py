@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import time
 import requests
@@ -19,6 +20,17 @@ def _is_local_redirect(url: str) -> bool:
     return "127.0.0.1" in u or "localhost" in u
 
 
+def _normalize_spotify_redirect_uri(url: str) -> str:
+    """Spotify compares redirect_uri byte-for-byte with Dashboard entries."""
+    u = (url or "").strip()
+    while u.endswith("/"):
+        u = u[:-1]
+    # Production callbacks should use https (Spotify may reject http on cloud URLs).
+    if u.startswith("http://") and not _is_local_redirect(u):
+        u = "https://" + u[len("http://") :]
+    return u
+
+
 def _resolve_spotify_redirect_uri() -> str | None:
     """
     Spotify must redirect to a URL that actually runs this app's /callback.
@@ -32,16 +44,18 @@ def _resolve_spotify_redirect_uri() -> str | None:
     public_base = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
 
     if explicit and not (on_render and _is_local_redirect(explicit)):
-        return explicit
+        return _normalize_spotify_redirect_uri(explicit)
     if on_render and render_base:
-        return f"{render_base}/callback"
+        return _normalize_spotify_redirect_uri(f"{render_base}/callback")
     if public_base:
-        return f"{public_base}/callback"
-    return explicit or None
+        return _normalize_spotify_redirect_uri(f"{public_base}/callback")
+    return _normalize_spotify_redirect_uri(explicit) if explicit else None
 
 
 SPOTIFY_REDIRECT_URI = _resolve_spotify_redirect_uri()
 SCOPES = "user-read-playback-state user-modify-playback-state user-read-currently-playing"
+
+_redirect_uri_logged = False
 
 
 def get_selected_device(telegram_id: str) -> str | None:
@@ -56,6 +70,7 @@ def set_selected_device(telegram_id: str, device_id: str):
 
 
 def generate_auth_url(telegram_id: str) -> str:
+    global _redirect_uri_logged
     if not SPOTIFY_CLIENT_ID:
         raise ValueError("Missing SPOTIFY_CLIENT_ID in environment.")
     if not SPOTIFY_REDIRECT_URI:
@@ -65,6 +80,13 @@ def generate_auth_url(telegram_id: str) -> str:
             "Developer Dashboard), or rely on RENDER_EXTERNAL_URL when SPOTIFY_REDIRECT_URI "
             "is localhost."
         )
+    if not _redirect_uri_logged:
+        logging.getLogger(__name__).warning(
+            "Spotify OAuth redirect_uri=%r — add this EXACT string to Spotify Dashboard → "
+            "Redirect URIs and click Save.",
+            SPOTIFY_REDIRECT_URI,
+        )
+        _redirect_uri_logged = True
     params = {
         "client_id": SPOTIFY_CLIENT_ID,
         "response_type": "code",

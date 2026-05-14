@@ -277,6 +277,9 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    # Avoid logging full Telegram Bot API URLs (they embed the token) at INFO on Render.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     if not TOKEN:
         raise SystemExit(
             "Missing bot token. Set one of these in the environment (e.g. Render → Environment): "
