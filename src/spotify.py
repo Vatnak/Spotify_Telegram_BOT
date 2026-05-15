@@ -374,7 +374,7 @@ def resume(telegram_id: str) -> dict:
         if isinstance(now_playing, dict) and now_playing.get("is_playing"):
             now_playing["text"] = f"▶️ Resumed playback\n\n{now_playing.get('text', '')}"
             return now_playing
-        return {"text": "❌ Spotify Premium required for playback control."}
+        return {"text": "▶️ Resume Successful! "}
 
     elif response.status_code == 404:
         if not devices:
