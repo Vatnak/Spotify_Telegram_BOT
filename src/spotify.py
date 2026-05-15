@@ -352,8 +352,10 @@ def resume(telegram_id: str) -> dict:
         params=params,
     )
 
+    # Retry once on 404 — device may need a moment to become active
     if response.status_code == 404 and device_id:
-        _prepare_device_for_control(telegram_id, device_id)
+        import time
+        time.sleep(1)
         response = requests.put(
             "https://api.spotify.com/v1/me/player/play",
             headers=headers,
@@ -366,15 +368,21 @@ def resume(telegram_id: str) -> dict:
             now_playing["text"] = f"▶️ Resumed playback\n\n{now_playing.get('text', '')}"
             return now_playing
         return {"text": "▶️ Resumed playback"}
+
+    elif response.status_code == 403:
+        now_playing = get_now_playing(telegram_id)
+        if isinstance(now_playing, dict) and now_playing.get("is_playing"):
+            now_playing["text"] = f"▶️ Resumed playback\n\n{now_playing.get('text', '')}"
+            return now_playing
+        return {"text": "❌ Spotify Premium required for playback control."}
+
     elif response.status_code == 404:
         if not devices:
             return {"text": "❌ No devices found. Open Spotify on your phone first."}
         return {"text": _device_not_ready_hint()}
-    elif response.status_code == 403:
-        return {"text": "❌ Spotify Premium required for playback control."}
+
     else:
         return {"text": f"❌ Error resuming playback: {response.status_code}"}
-
 def add_queue(telegram_id: str, track_name: str) -> str:
     token = get_valid_token(telegram_id)
 
